@@ -1,0 +1,158 @@
+# ══════════════════════════════════════════════════════════════════════
+#  TOKNORA — GitHub Actions: Build Windows .exe
+#  Obiriec Labs © 2026
+#
+#  Trigger:
+#    - workflow_dispatch da ship_mac.sh (gh workflow run) con versione esplicita
+#    - Manuale da GitHub Actions tab → "Run workflow"
+#
+#  Segreti richiesti (toknora-releases → Settings → Secrets → Actions):
+#    PRIVATE_REPO_TOKEN — PAT con scope "repo" su ObiriecLabs/toknora (sorgente privato)
+# ══════════════════════════════════════════════════════════════════════
+
+name: Build Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versione (es: 2.1.3)'
+        required: true
+
+jobs:
+  build-windows:
+    name: Build TOKNORA.exe (Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      # ── Checkout repo PRIVATO (sorgente) ─────────────────────────────
+      - name: Checkout private source
+        uses: actions/checkout@v4
+        with:
+          repository: ObiriecLabs/toknora
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      # ── Versione ─────────────────────────────────────────────────────
+      - name: Determina versione
+        id: version
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "TOKNORA_VERSION=$VERSION"
+
+      # ── Python ───────────────────────────────────────────────────────
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ── Dipendenze ───────────────────────────────────────────────────
+      - name: Installa dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller flask pywebview requests `
+            reportlab python-pptx plyer pillow
+
+      # ── Build PyInstaller ─────────────────────────────────────────────
+      - name: Build TOKNORA.exe con PyInstaller
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --name "TOKNORA" `
+            --windowed `
+            --onedir `
+            --icon "static/assets/icon.ico" `
+            --add-data "templates;templates" `
+            --add-data "static;static" `
+            --add-data "core;core" `
+            --hidden-import flask `
+            --hidden-import flask.templating `
+            --hidden-import jinja2 `
+            --hidden-import werkzeug `
+            --hidden-import werkzeug.serving `
+            --hidden-import werkzeug.middleware.proxy_fix `
+            --hidden-import reportlab `
+            --hidden-import reportlab.platypus `
+            --hidden-import reportlab.lib `
+            --hidden-import reportlab.lib.pagesizes `
+            --hidden-import reportlab.lib.styles `
+            --hidden-import reportlab.lib.units `
+            --hidden-import reportlab.lib.colors `
+            --hidden-import reportlab.pdfgen `
+            --hidden-import pptx `
+            --hidden-import pptx.util `
+            --hidden-import requests `
+            --hidden-import urllib3 `
+            --hidden-import webview `
+            --hidden-import webview.platforms.edgechromium `
+            --hidden-import webview.platforms.winforms `
+            --hidden-import plyer `
+            --hidden-import plyer.platforms.win.notification `
+            --hidden-import smtplib `
+            --hidden-import email.mime.text `
+            --hidden-import threading `
+            --hidden-import pathlib `
+            --hidden-import json `
+            --exclude-module tkinter `
+            --exclude-module matplotlib `
+            --exclude-module numpy `
+            --exclude-module pandas `
+            --exclude-module scipy `
+            --exclude-module whisper `
+            --distpath "dist" `
+            --workpath "build_tmp" `
+            --noconfirm `
+            app.py
+
+      # ── NSIS installer ────────────────────────────────────────────────
+      - name: Installa NSIS
+        run: choco install nsis --yes --no-progress
+
+      - name: Aggiungi UTF-8 BOM al file NSIS
+        shell: pwsh
+        run: |
+          $nsiPath = "${{ github.workspace }}\build\installer.nsi"
+          $content  = [System.IO.File]::ReadAllBytes($nsiPath)
+          $bom      = [byte[]](0xEF, 0xBB, 0xBF)
+          if ($content[0] -ne 0xEF -or $content[1] -ne 0xBB -or $content[2] -ne 0xBF) {
+            $withBom = $bom + $content
+            [System.IO.File]::WriteAllBytes($nsiPath, $withBom)
+            Write-Host "  BOM UTF-8 aggiunto"
+          } else {
+            Write-Host "  BOM UTF-8 già presente"
+          }
+
+      - name: Crea installer NSIS
+        shell: pwsh
+        run: |
+          $version       = "${{ steps.version.outputs.version }}"
+          $distDir       = "${{ github.workspace }}\dist\TOKNORA"
+          $outDir        = "${{ github.workspace }}\dist"
+          $installerName = "TOKNORA-$version-win-setup.exe"
+          $nsiScript     = "${{ github.workspace }}\build\installer.nsi"
+          & "C:\Program Files (x86)\NSIS\makensis.exe" `
+            /DVERSION="$version" `
+            /DSRCDIR="$distDir" `
+            /DOUTFILE="$outDir\$installerName" `
+            $nsiScript
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "makensis fallito con codice $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          Write-Host "  OK: $installerName creato"
+
+      # ── Upload su Release già esistente in toknora-releases ───────────
+      - name: Carica installer su GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SETUP="dist/TOKNORA-${VERSION}-win-setup.exe"
+          gh release upload "v${VERSION}" "${SETUP}" \
+            --repo "ObiriecLabs/toknora-releases" --clobber
+          echo "  Caricato: TOKNORA-${VERSION}-win-setup.exe"
