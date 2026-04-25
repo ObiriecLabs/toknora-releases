@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://obirieclabs.com/assets/toknora-logo-128.png" width="80" alt="TOKNORA logo">
+  <img src="https://obirieclabs.com/assets/toknora-logo.png" width="200" alt="TOKNORA logo">
 </p>
 
 <h1 align="center">TOKNORA</h1>
