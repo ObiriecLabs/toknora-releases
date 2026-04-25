@@ -6,8 +6,8 @@
 #    - workflow_dispatch da ship_mac.sh (gh workflow run) con versione esplicita
 #    - Manuale da GitHub Actions tab → "Run workflow"
 #
-#  Segreti richiesti (toknora-releases → Settings → Secrets → Actions):
-#    PRIVATE_REPO_TOKEN — PAT con scope "repo" su ObiriecLabs/toknora (sorgente privato)
+#  Segreti richiesti (toknora → Settings → Secrets → Actions):
+#    PRIVATE_REPO_TOKEN — PAT con scope "repo" su ObiriecLabs/toknora-backup (sorgente privato)
 # ══════════════════════════════════════════════════════════════════════
 
 name: Build Windows
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout private source
         uses: actions/checkout@v4.2.2
         with:
-          repository: ObiriecLabs/toknora
+          repository: ObiriecLabs/toknora-backup
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       # ── Versione ─────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ jobs:
           }
           Write-Host "  OK: $installerName creato"
 
-      # ── Upload su Release già esistente in toknora-releases ───────────
+      # ── Upload su Release in toknora (repo pubblico) ──────────────────
       - name: Carica installer su GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -154,5 +154,5 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           SETUP="dist/TOKNORA-${VERSION}-win-setup.exe"
           gh release upload "v${VERSION}" "${SETUP}" \
-            --repo "ObiriecLabs/toknora-releases" --clobber
+            --repo "ObiriecLabs/toknora" --clobber
           echo "  Caricato: TOKNORA-${VERSION}-win-setup.exe"
