@@ -1,4 +1,8 @@
-<h1 align="center">🔥 TOKNORA</h1>
+<p align="center">
+  <img src="https://obirieclabs.com/assets/toknora-logo-128.png" width="80" alt="TOKNORA logo">
+</p>
+
+<h1 align="center">TOKNORA</h1>
 <p align="center"><strong>AI Spend Analytics — Desktop App + Browser Extension</strong></p>
 <p align="center">
   Track token costs across Claude Code, ChatGPT, Gemini and more. Locally. Privately. No cloud.
